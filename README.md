@@ -1,69 +1,45 @@
 # Mini Sistema de Sincronizacion de Archivos
 
-Version simplificada de un servicio de sincronizacion tipo Dropbox/rsync
-implementado en C sobre Linux, usando llamadas al sistema de bajo nivel,
-multiples procesos e IPC.
+Este sistema es una version simplificada de un servicio de sincronizacion tipo Dropbox/rsync
+implementado en C sobre Linux, usando llamadas al sistema de bajo nivel, procesos como workers e IPC.
 
 ## Arquitectura
+Se tienen estos cuatro procesos que sirven de base para todo el sistemas, estos procesos son:
 
-```
-                +------------------+
-                | Monitor (daemon) |
-                +------------------+
-                 |      |       |
-             pipe|  pipe|   FIFO/mq
-                 v      v       v
-           +--------+ +--------+  +--------+
-           |Worker 1| |Worker 2|  | Logger |
-           +--------+ +--------+  +--------+
-                 \        /
-                  v      v
-              directorio backup/
-
-  Memoria compartida (shm + semaforo) <- stats: archivos_copiados,
-  bytes_copiados, errores. Escrita por los workers, leida por el monitor.
-```
-
-- **Monitor**: escanea el directorio vigilado cada 5 s, detecta cambios
-  comparando metadatos (tamano/mtime) y reparte el trabajo entre los
-  workers via pipes.
-- **Workers** (`fork()` del monitor): reciben mensajes `COPIAR <ruta>`
-  por su pipe, copian el archivo con `open()/read()/write()`, y
-  reportan el resultado tanto a la memoria compartida de estadisticas
-  como al logger.
-- **Logger**: proceso independiente que recibe eventos por un FIFO con
-  nombre (`mkfifo`) y los escribe con timestamp en `logs/minisync.log`.
+- **Monitor**: Escanea el directorio vigilado cada 5 s, detecta cambios
+  comparando metadatos como tamaño y fecha, después reparte el trabajo entre los
+  workers mediante pipes.
+- **Workers** : Reciben mensajes como `COPIAR <ruta>`
+  por su pipe, copian el archivo con `open()/read()/write()`, que son llamadas al sistema de bajo nivel y
+  reportan el resultado tanto a la memoria compartida de estadisticas como al logger.
+- **Logger**: Proceso independiente que recibe eventos por un FIFO con
+  nombre `mkfifo` y los escribe con timestamp en `logs/minisync.log`.
 
 ## Estructura del proyecto
-
 ```
 minisync/
 ├── Makefile
 ├── README.md
-├── include/         # headers con las interfaces (.h)
+├── include/        
 │   ├── scanner.h
 │   ├── backup.h
 │   ├── stats.h
 │   ├── ipc.h
 │   └── logger.h
-├── src/             # implementacion (.c)
-│   ├── scan.c        -> comando standalone `scan <directorio>`
-│   ├── scanner.c      -> recorrido recursivo (readdir/stat/lstat)
-│   ├── backup.c        -> copiarArchivo() y logica incremental
-│   ├── stats.c          -> memoria compartida + semaforo POSIX
-│   ├── ipc.c              -> pipes monitor<->worker y workerMain()
-│   ├── logger.c            -> proceso logger via FIFO
-│   └── monitor.c            -> programa principal `minisyncd`
-├── backup/          # destino de las copias (se llena en runtime)
-└── logs/            # minisync.log (se llena en runtime)
+├── src/ 
+│   ├── scan.c        
+│   ├── scanner.c     
+│   ├── backup.c        
+│   ├── stats.c          
+│   ├── ipc.c              
+│   ├── logger.c            
+│   └── monitor.c          
+├── backup/
+└── logs/            
 ```
 
-Cada archivo `.c` en `src/` tiene bloques `TODO(n)` describiendo
-exactamente que llamadas al sistema usar y en que orden; las firmas ya
-estan fijadas en los `.h` correspondientes.
-
 ## Compilacion
-
+Se utiliza estos comandos en la carpeta raiz del proyecto que es minisync
 ```bash
 make            # compila bin/scan y bin/minisyncd
 make clean      # limpia objetos y binarios
@@ -92,14 +68,8 @@ make clean      # limpia objetos y binarios
 
 ## Sincronizacion incremental
 
-Antes de copiar, se compara el tamano y la fecha de modificacion
+Antes de copiar, se compara el tamaño y la fecha de modificación
 (`st_size`, `st_mtime`) del archivo origen contra el archivo ya
 existente en `backup/`; solo se copia si no existe o si alguno de los
 dos valores cambio.
 
-## Pendiente para el informe (no forma parte del codigo)
-
-- Medir archivos/seg y MB/seg variando el numero de workers.
-- Medir utilizacion de CPU durante una sincronizacion grande.
-- Documentar cualquier ayuda externa utilizada, segun exige el
-  enunciado.
