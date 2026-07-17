@@ -59,12 +59,7 @@ make clean      # limpia objetos y binarios
 ```
 
 ## Diseno de IPC
-
-| Canal | Tecnologia | Uso |
-|---|---|---|
-| Monitor -> Worker | `pipe()` | tareas `COPIAR <ruta>` / `FIN` |
-| Worker/Monitor -> Logger | FIFO con nombre (`mkfifo`) | eventos de texto con timestamp |
-| Worker <-> Worker/Monitor | memoria compartida (`shm_open`+`mmap`) + semaforo POSIX (`sem_open`) | contador de archivos/bytes copiados y errores, protegido de condiciones de carrera |
+Esta basado en pipes que generan file descriptors tanto de escritura como de lectura, estos permiten que exista la comunicación entre los procesos monitor y workers que permiten al monitor asignar tareas a los workers. 
 
 ## Sincronizacion incremental
 
